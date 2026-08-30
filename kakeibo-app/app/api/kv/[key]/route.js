@@ -2,7 +2,7 @@ import { getValue, setValue } from "@/lib/db";
 
 export async function GET(request, { params }) {
   const { key } = await params;
-  const value = getValue(key);
+  const value = await getValue(key);
   return Response.json({ value });
 }
 
@@ -17,6 +17,6 @@ export async function PUT(request, { params }) {
   if (typeof body.value !== "string") {
     return Response.json({ ok: false, error: "value must be a string" }, { status: 400 });
   }
-  setValue(key, body.value);
+  await setValue(key, body.value);
   return Response.json({ ok: true });
 }
