@@ -6,6 +6,8 @@
 // でも「HTMLとして貼り付け」ると、noteのエディタが自分で見出しや太字に変換してくれる。
 // だからMarkdown → HTML に直してから貼り付ける。
 
+import path from "node:path";
+
 import { marked } from "marked";
 
 /**
@@ -36,6 +38,62 @@ export function splitTitleAndBody(markdown) {
 
   // `# タイトル` が無い場合はタイトル無しとして扱う（呼び出し側で決める）
   return { title: null, body: markdown };
+}
+
+// 画像の場所を覚えておくための「目印」の文字列。
+// 本文にまず目印を入れておき、あとでそこを画像に入れ替える。
+// ふつうの文章には出てこない形にしてある。
+const IMAGE_MARKER = (index) => `⟦note-image-${index}⟧`;
+
+// `![説明](ファイル名)` だけが書かれている行にあてはめる型。
+const IMAGE_LINE = /^\s*!\[([^\]]*)\]\(\s*([^)\s]+)(?:\s+"[^"]*")?\s*\)\s*$/;
+
+/**
+ * 本文から画像の行を抜き出し、そこを「目印」に置きかえる。
+ *
+ * なぜ置きかえるのか:
+ * 文字はHTMLとして1回で貼り付けられるが、画像はそうはいかない。
+ * 画像はnoteのサーバーに1枚ずつ預ける必要があるので、
+ * 「あとでここに入れる」という目印だけ先に置いておき、
+ * 本文を入れ終わってから、目印を1つずつ画像に入れ替える。
+ *
+ * @param {string} markdown - 本文（タイトルを取り除いたもの）
+ * @param {string} baseDir - Markdownファイルが置いてあるフォルダ。相対パスの起点になる
+ * @returns {{markdown: string, images: Array<{marker: string, alt: string, src: string, filePath: string|null}>}}
+ */
+export function extractImages(markdown, baseDir) {
+  const images = [];
+
+  const replaced = markdown
+    .split("\n")
+    .map((line) => {
+      const m = line.match(IMAGE_LINE);
+      if (!m) return line;
+
+      const [, alt, src] = m;
+
+      // ネット上の画像（http/https）はこのパソコンに無いので、預けようがない。
+      // その行はそのまま残して、呼び出し側で知らせる。
+      const isRemote = /^https?:\/\//.test(src);
+      const marker = IMAGE_MARKER(images.length);
+
+      images.push({
+        marker,
+        alt,
+        src,
+        filePath: isRemote ? null : resolveFrom(baseDir, src),
+      });
+
+      return marker;
+    })
+    .join("\n");
+
+  return { markdown: replaced, images };
+}
+
+function resolveFrom(baseDir, src) {
+  const decoded = decodeURI(src);
+  return path.isAbsolute(decoded) ? decoded : path.join(baseDir, decoded);
 }
 
 /**
