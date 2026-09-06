@@ -30,6 +30,7 @@ query($owner:String!, $name:String!, $number:Int!, $cursor:String) {
           line
           originalLine
           comments(first:50) {
+            pageInfo { hasNextPage }
             nodes {
               databaseId
               body
@@ -95,6 +96,9 @@ def shape(thread):
         "outdated": thread["isOutdated"],
         "path": thread["path"],
         "line": thread["line"] if thread["line"] is not None else thread["originalLine"],
+        # 1スレッドが50コメントを超えることは滅多にないが、超えたときに
+        # 黙って切り捨てると「返信済みなのに見えていない」事故になる
+        "comments_truncated": thread["comments"]["pageInfo"]["hasNextPage"],
         "comments": [
             {
                 "author": (c.get("author") or {}).get("login", "(unknown)"),
@@ -144,6 +148,8 @@ def main():
         for c in t["comments"]:
             body = c["body"].strip().replace("\n", "\n     ")
             print("   @%s: %s" % (c["author"], body))
+        if t["comments_truncated"]:
+            print("   （51件目以降は省略。全部見るには GitHub 上で確認する）")
         print()
 
 
