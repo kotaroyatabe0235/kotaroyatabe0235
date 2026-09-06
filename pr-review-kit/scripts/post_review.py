@@ -120,10 +120,10 @@ def main():
     pr = resolve_pr(args.pr, repo)
 
     diff_text = run(["gh", "pr", "diff", pr, "--repo", repo])
-    allowed = {p: s for p, s in diff_lines.parse(diff_text).items()}
+    parsed = diff_lines.parse(diff_text)
     allowed = {p: {side: diff_lines.to_ranges([n for n, _ in items])
                    for side, items in sides.items() if items}
-               for p, sides in allowed.items()}
+               for p, sides in parsed.items()}
 
     problems = validate(review, allowed)
     if problems:
