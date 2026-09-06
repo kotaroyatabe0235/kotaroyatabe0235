@@ -8,6 +8,7 @@ GitHubプロフィール用リポジトリ（`kotaroyatabe0235/kotaroyatabe0235`
 - `README.md` — プロフィールページ本体
 - `kakeibo-app/` — 個人開発プロジェクト（家計簿アプリ、Next.js）。詳細は `kakeibo-app/CLAUDE.md` を参照
 - `note-publisher/` — note(note.com)の下書きを作る Claude Code スキル
+- `pdu-claimer/` — 公開したnote記事をPMPのPDUとして申請する Claude Code スキル
 - `pr-review-kit/` — PRのレビューと、レビューコメントへの対応をする Claude Code スキル2本
 
 ## 作業場所のルール
