@@ -14,7 +14,7 @@ const { spawnSync } = require('child_process');
 
 const root = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-const m = html.match(/<script>([\s\S]*)<\/script>/);
+const m = html.match(/<script>([\s\S]*?)<\/script>/);
 if (!m) { console.error('index.html から <script> が見つかりません'); process.exit(1); }
 const game = m[1];
 const stub = fs.readFileSync(path.join(__dirname, 'stub.js'), 'utf8');
