@@ -8,7 +8,6 @@
 //
 // 申請の送信（submit）は、PMIにログインできることを確かめてから作る。
 
-import path from "node:path";
 import readline from "node:readline/promises";
 import { Writable } from "node:stream";
 import { stdin, stdout } from "node:process";
@@ -49,7 +48,16 @@ function parseArgs(argv) {
   };
   for (let i = 1; i < argv.length; i++) {
     const a = argv[i];
-    if (a === "--hours") args.hours = Number(argv[++i]);
+    // PDU数はユーザーの申告がすべて。値がおかしいときに黙って既定値へ落とすと、
+    // 「3時間のつもりが2PDUで申請されていた」が起きる。だからここで止める。
+    if (a === "--hours") {
+      const raw = argv[++i];
+      const n = Number(raw);
+      if (!Number.isFinite(n) || n <= 0) {
+        throw new Error(`--hours には0より大きい数を指定してください（受け取った値: ${raw}）`);
+      }
+      args.hours = n;
+    }
     else if (a === "--headless") args.headless = true;
     else if (a === "--yes") args.yes = true;
     else if (a === "--dry-run") args.dryRun = true;
@@ -249,11 +257,20 @@ async function cmdSubmit(args) {
   }
 
   const already = await findClaim(article.key);
-  if (already && already.status === "submitted") {
-    console.error("この記事はすでに申請済みです（台帳にあります）。二重申請を避けるため中止します。");
-    console.error(`  ${already.submittedAt} に ${already.pdu} PDU`);
-    process.exitCode = 1;
-    return;
+  if (already) {
+    if (already.status === "submitted") {
+      console.error("この記事はすでに申請済みです（台帳にあります）。二重申請を避けるため中止します。");
+      console.error(`  ${already.submittedAt} に ${already.pdu} PDU`);
+      process.exitCode = 1;
+      return;
+    }
+
+    // status が unknown＝「送ったが通ったか確かめられなかった」。
+    // PMI側では受理されていることがあるので、黙って進むと二重申請になる。
+    console.log(
+      `⚠ この記事は ${already.submittedAt} に ${already.pdu} PDU で申請を試みた記録があります（status: ${already.status}）。`
+    );
+    console.log("  CCRSの Claim History に入っていないことを確かめてから進めてください。\n");
   }
 
   const claim = buildClaim(article, { hours: args.hours });
@@ -293,8 +310,12 @@ async function cmdSubmit(args) {
       console.log("");
     }
 
+    // Description は iframe に打ち込む都合で一番失敗しやすい。
+    // 空のまま申請すると、監査のときに「何をしたのか」を示すものが無くなる。
     const missing = [];
     if (!filled.title) missing.push("Title");
+    if (!filled.description) missing.push("Description");
+    if (!filled.url) missing.push("URL");
     if (!filled.dateStarted) missing.push("Date Started");
     if (!filled.dateCompleted) missing.push("Date Completed");
     if (!filled.pdu) missing.push("PDUs Claimed");
@@ -331,7 +352,10 @@ async function cmdSubmit(args) {
     console.log("\n申請しています…");
     const result = await submitClaim(page);
 
-    const succeeded = /submitted|success|thank you|claim history/i.test(result.text);
+    // 「Claim History」はページ上部のメニューにも出るので、成功のしるしには使えない。
+    // 申請フォームのページから離れたか、も合わせて見る。
+    const leftForm = !result.url.includes("/claim/new/");
+    const succeeded = leftForm && /submitted|success|thank you/i.test(result.text);
     const shot = await saveShot(page, "claim-result");
 
     await addClaim({
@@ -417,7 +441,15 @@ async function cmdList() {
     console.log(`      ${c.articleUrl}`);
   }
   console.log("");
-  console.log(`合計: ${total.count} 件 / ${total.totalPdu} PDU`);
+  // 合計に入るのは status が submitted の分だけ。
+  // 上の一覧は unknown も出すので、断りを入れないと件数が合わなく見える。
+  const unknownCount = ledger.claims.length - total.count;
+  console.log(`合計: ${total.count} 件 / ${total.totalPdu} PDU（確認できた分だけ）`);
+  if (unknownCount > 0) {
+    console.log(
+      `  ほかに、通ったか確かめられていない申請が ${unknownCount} 件あります（合計には入れていません）。`
+    );
+  }
   console.log(`Giving Back の上限 ${GIVING_BACK_MAX} PDU に対して、残り ${total.givingBackLeft} PDU`);
   if (total.overGivingBack) {
     console.log("⚠ Giving Back の上限を超えています。超えた分は数えられません。");

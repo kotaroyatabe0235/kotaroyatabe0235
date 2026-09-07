@@ -139,10 +139,17 @@ async function readLoginError(page) {
   }, LOGIN_ERROR_PHRASES);
 }
 
-/** 今の画面に出ている文字を読む（何を聞かれているのか知るため）。 */
-export async function readScreenText(page) {
-  return await page.evaluate(() =>
-    (document.body.innerText || "").replace(/\n{2,}/g, "\n").trim().slice(0, 800)
+/**
+ * 今の画面に出ている文字を読む（何を聞かれているのか知るため）。
+ *
+ * 切る長さは呼ぶ側で決める。人に見せるだけなら短くてよいが、
+ * 数字を拾う用途（readDashboard）で短く切ると、探している行が
+ * 切り落とされて「何も見つからない」になってしまう。
+ */
+export async function readScreenText(page, limit = 800) {
+  return await page.evaluate(
+    (n) => (document.body.innerText || "").replace(/\n{2,}/g, "\n").trim().slice(0, n),
+    limit
   );
 }
 
@@ -320,7 +327,10 @@ export async function submitClaim(page) {
     await page.waitForTimeout(500);
   }
 
-  await page.locator('button:has-text("Submit"), input[type="submit"]').first().click();
+  // この画面にはサイト内検索のフォームもあるので、申請フォームの中のボタンに限る。
+  // ページ全体から探すと、DOMの順しだいで検索の送信ボタンを押してしまう。
+  const form = page.locator("form:has(#ActivityTitle)");
+  await form.locator('button:has-text("Submit"), input[type="submit"]').first().click();
   await page.waitForTimeout(8000);
 
   return {
@@ -336,7 +346,8 @@ export async function readDashboard(page) {
   await page.goto(CCRS_DASHBOARD, { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(7000);
 
-  const text = await readScreenText(page);
+  // メニューやお知らせが上に長く続くことがあるので、多めに読む
+  const text = await readScreenText(page, 8000);
   const pick = (re) => text.match(re)?.[1]?.trim() ?? null;
 
   return {
