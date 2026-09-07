@@ -8,7 +8,6 @@
 //
 // 申請の送信（submit）は、PMIにログインできることを確かめてから作る。
 
-import path from "node:path";
 import readline from "node:readline/promises";
 import { Writable } from "node:stream";
 import { stdin, stdout } from "node:process";
