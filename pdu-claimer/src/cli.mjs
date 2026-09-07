@@ -438,7 +438,15 @@ async function cmdList() {
     console.log(`      ${c.articleUrl}`);
   }
   console.log("");
-  console.log(`合計: ${total.count} 件 / ${total.totalPdu} PDU`);
+  // 合計に入るのは status が submitted の分だけ。
+  // 上の一覧は unknown も出すので、断りを入れないと件数が合わなく見える。
+  const unknownCount = ledger.claims.length - total.count;
+  console.log(`合計: ${total.count} 件 / ${total.totalPdu} PDU（確認できた分だけ）`);
+  if (unknownCount > 0) {
+    console.log(
+      `  ほかに、通ったか確かめられていない申請が ${unknownCount} 件あります（合計には入れていません）。`
+    );
+  }
   console.log(`Giving Back の上限 ${GIVING_BACK_MAX} PDU に対して、残り ${total.givingBackLeft} PDU`);
   if (total.overGivingBack) {
     console.log("⚠ Giving Back の上限を超えています。超えた分は数えられません。");
