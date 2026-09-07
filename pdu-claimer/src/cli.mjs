@@ -311,8 +311,12 @@ async function cmdSubmit(args) {
       console.log("");
     }
 
+    // Description は iframe に打ち込む都合で一番失敗しやすい。
+    // 空のまま申請すると、監査のときに「何をしたのか」を示すものが無くなる。
     const missing = [];
     if (!filled.title) missing.push("Title");
+    if (!filled.description) missing.push("Description");
+    if (!filled.url) missing.push("URL");
     if (!filled.dateStarted) missing.push("Date Started");
     if (!filled.dateCompleted) missing.push("Date Completed");
     if (!filled.pdu) missing.push("PDUs Claimed");
