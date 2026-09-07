@@ -238,13 +238,14 @@ async function cmdDraft(args) {
   // 画像の行は先に抜き出して「目印」に置きかえる。
   // 本文を入れ終わったあとで、目印を1枚ずつ画像に入れ替える。
   const { markdown: bodyWithMarkers, images } = extractImages(body, path.dirname(filePath));
-  const html = markdownToHtml(bodyWithMarkers);
 
   // 使える画像（このパソコンにあって、実際に読めるもの）だけ残す
   const usable = [];
+  const dropped = [];
   for (const image of images) {
     if (!image.filePath) {
       console.log(`⚠ ネット上の画像はそのままにしました: ${image.src}`);
+      dropped.push(image);
       continue;
     }
     try {
@@ -252,8 +253,17 @@ async function cmdDraft(args) {
       usable.push(image);
     } catch {
       console.log(`⚠ 画像が見つかりません: ${image.filePath}`);
+      dropped.push(image);
     }
   }
+
+  // 入れられない画像の目印は、置きかえる相手がいない。
+  // 残したままHTMLにすると、本文に「⟦note-image-N⟧」の文字が出てしまうので先に消す。
+  const cleanedBody = dropped.reduce(
+    (text, image) => (image.marker ? text.split(image.marker).join("") : text),
+    bodyWithMarkers
+  );
+  const html = markdownToHtml(cleanedBody);
 
   console.log(`ファイル : ${filePath}`);
   console.log(`タイトル : ${title}`);
