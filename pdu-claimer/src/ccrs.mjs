@@ -320,7 +320,10 @@ export async function submitClaim(page) {
     await page.waitForTimeout(500);
   }
 
-  await page.locator('button:has-text("Submit"), input[type="submit"]').first().click();
+  // この画面にはサイト内検索のフォームもあるので、申請フォームの中のボタンに限る。
+  // ページ全体から探すと、DOMの順しだいで検索の送信ボタンを押してしまう。
+  const form = page.locator("form:has(#ActivityTitle)");
+  await form.locator('button:has-text("Submit"), input[type="submit"]').first().click();
   await page.waitForTimeout(8000);
 
   return {
