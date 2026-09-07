@@ -331,7 +331,10 @@ async function cmdSubmit(args) {
     console.log("\n申請しています…");
     const result = await submitClaim(page);
 
-    const succeeded = /submitted|success|thank you|claim history/i.test(result.text);
+    // 「Claim History」はページ上部のメニューにも出るので、成功のしるしには使えない。
+    // 申請フォームのページから離れたか、も合わせて見る。
+    const leftForm = !result.url.includes("/claim/new/");
+    const succeeded = leftForm && /submitted|success|thank you/i.test(result.text);
     const shot = await saveShot(page, "claim-result");
 
     await addClaim({
