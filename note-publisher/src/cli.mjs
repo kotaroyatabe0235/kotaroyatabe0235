@@ -292,13 +292,24 @@ async function cmdDraft(args) {
     await fillBody(page, html);
     console.log("本文を入れました");
 
+    let failed = 0;
     if (usable.length > 0) {
       console.log(`画像を入れています（${usable.length}枚）…`);
       const results = await insertImages(page, usable);
       for (const [i, r] of results.entries()) {
         const name = path.basename(usable[i].filePath);
         console.log(r.ok ? `  ${name} … 入りました` : `  ${name} … 入りませんでした（${r.reason}）`);
+        if (!r.ok) failed++;
       }
+    }
+
+    // 入らなかった画像は、目印も一緒に消えている。
+    // 本文を見ても「ここに入るはずだった」と分からないので、最後にもう一度知らせる。
+    if (failed > 0) {
+      console.log(
+        `\n⚠ ${failed}枚の画像が入りませんでした。目印も消えているので、\n` +
+          "  noteの画面で、入る場所と抜けている画像を確かめてください。"
+      );
     }
 
     const saved = await saveDraft(page);
