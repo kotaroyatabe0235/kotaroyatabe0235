@@ -653,7 +653,12 @@ function die(){
 function respawnPlayer(){
   P.x=respawn.x; P.y=respawn.y+0.9; P.z=respawn.z;
   P.vx=P.vy=P.vz=0; P.invuln=1.4; P.spin=0; P.onGround=false; P.ground=null;
-  for(const e of enemies) e.alive=true;
+  // リスポーン地点より先の敵だけ戻す。倒したときに増えたぶんも取り消して、
+  // 「倒す → わざと落ちる」でくだものの数をかせげないようにする。
+  for(const e of enemies){
+    if(e.alive||e.z<=respawn.z-2) continue;
+    e.alive=true; fruitCount=Math.max(0,fruitCount-1);
+  }
   state='play';
 }
 
