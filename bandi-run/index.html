@@ -1,0 +1,1118 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>バンディ・ラン</title>
+<style>
+  :root{
+    --ink:#fff8e7;
+    --panel:rgba(18,14,30,.82);
+    --accent:#ffb43c;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;overflow:hidden;background:#10182a;
+    font-family:"Hiragino Maru Gothic ProN","Hiragino Sans",system-ui,-apple-system,sans-serif;
+    color:var(--ink);user-select:none;touch-action:none}
+  #c{position:fixed;inset:0;width:100%;height:100%;display:block}
+
+  /* ---------- HUD ---------- */
+  #hud{position:fixed;inset:0;pointer-events:none;padding:calc(12px + env(safe-area-inset-top)) 16px 0;
+    display:flex;justify-content:space-between;align-items:flex-start;font-weight:700;
+    text-shadow:0 2px 0 rgba(0,0,0,.45);opacity:0;transition:opacity .3s}
+  #hud.on{opacity:1}
+  .stat{display:flex;align-items:center;gap:8px;font-size:20px;line-height:1;
+    background:rgba(20,16,34,.5);border:2px solid rgba(255,255,255,.14);
+    border-radius:999px;padding:8px 14px;backdrop-filter:blur(4px)}
+  .stats{display:flex;gap:10px;flex-wrap:wrap}
+  .dot{width:16px;height:16px;border-radius:50%;display:inline-block}
+  .fruit{background:radial-gradient(circle at 35% 30%,#ffd76a,#ff7a2f)}
+  .crate{width:15px;height:15px;border-radius:3px;background:#c98a44;border:2px solid #7a4d1d}
+  #lives{display:flex;gap:5px}
+  .life{width:18px;height:18px;background:var(--accent);border-radius:50% 50% 45% 45%;
+    box-shadow:inset 0 -4px 0 rgba(0,0,0,.2)}
+  .life.off{opacity:.22}
+
+  /* ---------- screens ---------- */
+  #screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    padding:24px;background:radial-gradient(ellipse at 50% 35%,rgba(28,20,48,.55),rgba(8,6,16,.9));
+    backdrop-filter:blur(3px);text-align:center}
+  #screen.hide{display:none}
+  .panel{background:var(--panel);border:3px solid rgba(255,255,255,.16);border-radius:22px;
+    padding:26px 30px;max-width:520px;width:100%;box-shadow:0 24px 60px rgba(0,0,0,.5)}
+  h1{margin:0 0 4px;font-size:clamp(30px,7vw,46px);letter-spacing:.04em;
+    color:var(--accent);text-shadow:0 4px 0 #a4551a,0 8px 18px rgba(0,0,0,.5)}
+  .sub{margin:0 0 18px;opacity:.75;font-size:14px}
+  .keys{display:grid;grid-template-columns:auto 1fr;gap:8px 14px;font-size:15px;
+    text-align:left;margin:0 auto 20px;max-width:340px}
+  .keys b{background:rgba(255,255,255,.12);border:2px solid rgba(255,255,255,.2);
+    border-radius:8px;padding:3px 9px;font-size:13px;white-space:nowrap;text-align:center}
+  button{font:inherit;font-weight:800;font-size:19px;color:#3a2200;cursor:pointer;
+    background:linear-gradient(#ffd071,var(--accent));border:none;border-bottom:5px solid #b96b12;
+    border-radius:14px;padding:13px 34px;transition:transform .08s}
+  button:active{transform:translateY(3px);border-bottom-width:2px}
+  .big{font-size:clamp(24px,6vw,34px);margin:0 0 10px}
+  .result{font-size:17px;line-height:1.9;margin:0 0 20px}
+  .result span{color:var(--accent);font-weight:800}
+
+  /* ---------- touch ---------- */
+  #touch{position:fixed;inset:0;pointer-events:none;display:none}
+  #touch.on{display:block}
+  #stick{position:absolute;left:0;bottom:0;width:45%;height:62%;pointer-events:auto}
+  #knobBase,#knob{position:absolute;border-radius:50%;border:3px solid rgba(255,255,255,.3);
+    opacity:0;transition:opacity .15s}
+  #knobBase{width:120px;height:120px;background:rgba(255,255,255,.08);margin:-60px 0 0 -60px}
+  #knob{width:56px;height:56px;background:rgba(255,255,255,.3);margin:-28px 0 0 -28px}
+  #stick.act #knobBase,#stick.act #knob{opacity:1}
+  .btn{position:absolute;width:96px;height:96px;border-radius:50%;pointer-events:auto;
+    display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;
+    border:3px solid rgba(255,255,255,.35);color:#fff;text-shadow:0 2px 3px rgba(0,0,0,.5)}
+  #bJump{right:24px;bottom:calc(38px + env(safe-area-inset-bottom));background:rgba(255,180,60,.35)}
+  #bSpin{right:130px;bottom:calc(100px + env(safe-area-inset-bottom));background:rgba(90,200,255,.32)}
+  .btn:active{filter:brightness(1.5)}
+
+  #toast{position:fixed;left:50%;top:26%;transform:translate(-50%,-50%) scale(.8);
+    font-size:clamp(22px,6vw,34px);font-weight:800;color:var(--accent);opacity:0;
+    text-shadow:0 4px 0 #a4551a;pointer-events:none;transition:opacity .25s,transform .25s}
+  #toast.on{opacity:1;transform:translate(-50%,-50%) scale(1)}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<div id="hud">
+  <div class="stats">
+    <div class="stat"><i class="dot fruit"></i><span id="uFruit">0</span></div>
+    <div class="stat"><i class="dot crate"></i><span id="uCrate">0</span>/<span id="uCrateMax">0</span></div>
+  </div>
+  <div class="stats">
+    <div class="stat"><span id="uTime">0:00</span></div>
+    <div class="stat"><span id="lives"></span></div>
+  </div>
+</div>
+
+<div id="touch">
+  <div id="stick"><div id="knobBase"></div><div id="knob"></div></div>
+  <div class="btn" id="bJump">ジャンプ</div>
+  <div class="btn" id="bSpin">スピン</div>
+</div>
+
+<div id="toast"></div>
+
+<div id="screen">
+  <div class="panel" id="panel"></div>
+</div>
+
+<script>
+"use strict";
+/* =========================================================================
+   バンディ・ラン  ―  ライブラリなしの WebGL 3Dアクション
+   1ファイル完結。three.js などの外部読み込みは一切なし。
+   ========================================================================= */
+
+/* ------------------------------------------------------------------ math */
+function mat4(){ return new Float32Array(16); }
+function ident(o){ o.fill(0); o[0]=o[5]=o[10]=o[15]=1; return o; }
+function mul(a,b,o){
+  for(let i=0;i<4;i++){
+    const b0=b[i*4],b1=b[i*4+1],b2=b[i*4+2],b3=b[i*4+3];
+    o[i*4  ]=a[0]*b0+a[4]*b1+a[8] *b2+a[12]*b3;
+    o[i*4+1]=a[1]*b0+a[5]*b1+a[9] *b2+a[13]*b3;
+    o[i*4+2]=a[2]*b0+a[6]*b1+a[10]*b2+a[14]*b3;
+    o[i*4+3]=a[3]*b0+a[7]*b1+a[11]*b2+a[15]*b3;
+  }
+  return o;
+}
+function perspective(o,fovy,aspect,near,far){
+  const f=1/Math.tan(fovy/2), nf=1/(near-far);
+  o.fill(0);
+  o[0]=f/aspect; o[5]=f; o[10]=(far+near)*nf; o[11]=-1; o[14]=2*far*near*nf;
+  return o;
+}
+function lookAt(o,ex,ey,ez,cx,cy,cz){
+  let zx=ex-cx, zy=ey-cy, zz=ez-cz;
+  let l=Math.hypot(zx,zy,zz)||1; zx/=l; zy/=l; zz/=l;
+  // x = normalize(cross(up,z))  （up は (0,1,0)）
+  let xx=zz, xy=0, xz=-zx;
+  l=Math.hypot(xx,xy,xz)||1; xx/=l; xy/=l; xz/=l;
+  const yx=zy*xz-zz*xy, yy=zz*xx-zx*xz, yz=zx*xy-zy*xx;
+  o[0]=xx; o[1]=yx; o[2]=zx; o[3]=0;
+  o[4]=xy; o[5]=yy; o[6]=zy; o[7]=0;
+  o[8]=xz; o[9]=yz; o[10]=zz; o[11]=0;
+  o[12]=-(xx*ex+xy*ey+xz*ez);
+  o[13]=-(yx*ex+yy*ey+yz*ez);
+  o[14]=-(zx*ex+zy*ey+zz*ez);
+  o[15]=1;
+  return o;
+}
+/* 平行移動 → Y回転 → 拡大 を1つにした行列 */
+function compose(o,px,py,pz,rotY,sx,sy,sz){
+  const c=Math.cos(rotY), s=Math.sin(rotY);
+  o[0]=c*sx; o[1]=0;  o[2]=-s*sx; o[3]=0;
+  o[4]=0;    o[5]=sy; o[6]=0;     o[7]=0;
+  o[8]=s*sz; o[9]=0;  o[10]=c*sz; o[11]=0;
+  o[12]=px;  o[13]=py; o[14]=pz;  o[15]=1;
+  return o;
+}
+const clamp=(v,a,b)=>v<a?a:(v>b?b:v);
+const lerp=(a,b,t)=>a+(b-a)*t;
+const rnd=(a,b)=>a+Math.random()*(b-a);
+
+/* ------------------------------------------------------------------ gl */
+const canvas=document.getElementById('c');
+const gl=canvas.getContext('webgl',{antialias:true,alpha:false});
+if(!gl){ document.getElementById('panel').innerHTML='<h1>ごめんなさい</h1><p class="sub">このブラウザは WebGL に対応していないみたいです。</p>'; throw new Error('no webgl'); }
+
+const VS=`
+attribute vec3 aPos;
+attribute vec3 aNrm;
+uniform mat4 uProj,uView,uModel;
+varying vec3 vNrm,vWorld;
+void main(){
+  vec4 wp=uModel*vec4(aPos,1.0);
+  vWorld=wp.xyz;
+  vNrm=mat3(uModel[0].xyz,uModel[1].xyz,uModel[2].xyz)*aNrm;
+  gl_Position=uProj*uView*wp;
+}`;
+const FS=`
+precision mediump float;
+uniform vec3 uColor,uLight,uFog,uCam;
+uniform float uEmis,uAlpha,uFogNear,uFogFar;
+varying vec3 vNrm,vWorld;
+void main(){
+  vec3 n=normalize(vNrm);
+  float d=max(dot(n,uLight),0.0);
+  float sky=0.5+0.5*n.y;
+  vec3 amb=mix(vec3(0.20,0.22,0.32),vec3(0.52,0.58,0.72),sky);
+  vec3 col=uColor*(amb+d*vec3(1.10,1.02,0.86));
+  col=mix(col,uColor*1.15,uEmis);
+  float f=clamp((length(vWorld-uCam)-uFogNear)/(uFogFar-uFogNear),0.0,1.0);
+  col=mix(col,uFog,f*0.88);
+  gl_FragColor=vec4(col,uAlpha);
+}`;
+function shader(type,src){
+  const s=gl.createShader(type); gl.shaderSource(s,src); gl.compileShader(s);
+  if(!gl.getShaderParameter(s,gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+  return s;
+}
+const prog=gl.createProgram();
+gl.attachShader(prog,shader(gl.VERTEX_SHADER,VS));
+gl.attachShader(prog,shader(gl.FRAGMENT_SHADER,FS));
+gl.linkProgram(prog);
+if(!gl.getProgramParameter(prog,gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+gl.useProgram(prog);
+
+const A={pos:gl.getAttribLocation(prog,'aPos'),nrm:gl.getAttribLocation(prog,'aNrm')};
+const U={};
+['uProj','uView','uModel','uColor','uLight','uFog','uCam','uEmis','uAlpha','uFogNear','uFogFar']
+  .forEach(n=>U[n]=gl.getUniformLocation(prog,n));
+
+/* ---- 形（立方体と球）をプログラムで作る ---- */
+function makeMesh(verts){
+  const buf=gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+  gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(verts),gl.STATIC_DRAW);
+  return {buf,count:verts.length/6};
+}
+function cubeVerts(){
+  const v=[];
+  const axes=[[1,0,0],[0,1,0],[0,0,1]];
+  for(let a=0;a<3;a++) for(const s of [1,-1]){
+    const n=[axes[a][0]*s,axes[a][1]*s,axes[a][2]*s];
+    const u=axes[(a+1)%3].slice();
+    // v = cross(n,u)  →  cross(u,v) === n になり、面が外向きになる
+    const w=[n[1]*u[2]-n[2]*u[1], n[2]*u[0]-n[0]*u[2], n[0]*u[1]-n[1]*u[0]];
+    const P=(su,sw)=>[
+      (n[0]+su*u[0]+sw*w[0])*0.5,(n[1]+su*u[1]+sw*w[1])*0.5,(n[2]+su*u[2]+sw*w[2])*0.5];
+    const q=[P(-1,-1),P(1,-1),P(1,1),P(-1,1)];
+    for(const i of [0,1,2,0,2,3]) v.push(q[i][0],q[i][1],q[i][2],n[0],n[1],n[2]);
+  }
+  return v;
+}
+function sphereVerts(seg=14,ring=9){
+  const p=(i,j)=>{
+    const t=Math.PI*j/ring, f=2*Math.PI*i/seg;
+    return [Math.sin(t)*Math.cos(f)*0.5, Math.cos(t)*0.5, Math.sin(t)*Math.sin(f)*0.5];
+  };
+  const v=[];
+  for(let j=0;j<ring;j++) for(let i=0;i<seg;i++){
+    const a=p(i,j), b=p(i+1,j), c=p(i+1,j+1), d=p(i,j+1);
+    for(const q of [a,b,c,a,c,d]) v.push(q[0],q[1],q[2],q[0]*2,q[1]*2,q[2]*2);
+  }
+  return v;
+}
+const MESH={cube:makeMesh(cubeVerts()),ball:makeMesh(sphereVerts())};
+
+/* ---- 描画キュー ---- */
+const M_TMP=mat4();
+let drawList=[], drawAlpha=[];
+function draw(mesh,px,py,pz,rotY,sx,sy,sz,color,emis,alpha){
+  const item={mesh,px,py,pz,rotY,sx,sy,sz,color,emis:emis||0,alpha:alpha===undefined?1:alpha};
+  (item.alpha<1?drawAlpha:drawList).push(item);
+}
+function box(px,py,pz,sx,sy,sz,color,rotY,emis){ draw(MESH.cube,px,py,pz,rotY||0,sx,sy,sz,color,emis,1); }
+function ball(px,py,pz,r,color,emis){ draw(MESH.ball,px,py,pz,0,r,r,r,color,emis,1); }
+
+function flush(cam){
+  gl.uniform3fv(U.uCam,cam);
+  let bound=null;
+  const run=(list)=>{
+    for(const it of list){
+      if(bound!==it.mesh){
+        gl.bindBuffer(gl.ARRAY_BUFFER,it.mesh.buf);
+        gl.vertexAttribPointer(A.pos,3,gl.FLOAT,false,24,0);
+        gl.vertexAttribPointer(A.nrm,3,gl.FLOAT,false,24,12);
+        bound=it.mesh;
+      }
+      compose(M_TMP,it.px,it.py,it.pz,it.rotY,it.sx,it.sy,it.sz);
+      gl.uniformMatrix4fv(U.uModel,false,M_TMP);
+      gl.uniform3fv(U.uColor,it.color);
+      gl.uniform1f(U.uEmis,it.emis);
+      gl.uniform1f(U.uAlpha,it.alpha);
+      gl.drawArrays(gl.TRIANGLES,0,it.mesh.count);
+    }
+  };
+  run(drawList);
+  gl.depthMask(false);
+  gl.enable(gl.BLEND);
+  run(drawAlpha);
+  gl.disable(gl.BLEND);
+  gl.depthMask(true);
+  drawList.length=0; drawAlpha.length=0;
+}
+
+/* ------------------------------------------------------------------ 色 */
+const C={
+  body:[0.98,0.47,0.13], belly:[0.99,0.86,0.62], dark:[0.30,0.15,0.08],
+  white:[1,1,1], black:[0.07,0.06,0.09], jeans:[0.24,0.35,0.62],
+  ground:[0.78,0.62,0.36], grass:[0.36,0.64,0.28], stone:[0.52,0.50,0.58],
+  wood:[0.80,0.55,0.26], woodDark:[0.45,0.28,0.11],
+  tnt:[0.85,0.20,0.16], steel:[0.62,0.66,0.74], bounce:[0.98,0.82,0.20],
+  fruitBox:[0.86,0.42,0.18],
+  enemy:[0.28,0.55,0.30], enemyDark:[0.16,0.32,0.18], enemyShell:[0.55,0.36,0.22],
+  fruit:[1.0,0.55,0.10], leaf:[0.20,0.55,0.26], trunk:[0.42,0.28,0.16],
+  gold:[1.0,0.78,0.20], sky:[0.36,0.62,0.86], water:[0.10,0.26,0.44],
+};
+const FOG=[0.42,0.66,0.88];
+
+/* ------------------------------------------------------------------ 音 */
+let actx=null;
+function audioInit(){
+  if(actx) return;
+  const AC=window.AudioContext||window.webkitAudioContext;
+  if(AC) actx=new AC();
+}
+function tone(freq,dur,type,vol,slide){
+  if(!actx) return;
+  const t=actx.currentTime;
+  const o=actx.createOscillator(), g=actx.createGain();
+  o.type=type||'square'; o.frequency.setValueAtTime(freq,t);
+  if(slide) o.frequency.exponentialRampToValueAtTime(Math.max(30,slide),t+dur);
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(vol||0.16,t+0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(g); g.connect(actx.destination);
+  o.start(t); o.stop(t+dur+0.02);
+}
+function noise(dur,vol){
+  if(!actx) return;
+  const n=Math.floor(actx.sampleRate*dur);
+  const b=actx.createBuffer(1,n,actx.sampleRate), d=b.getChannelData(0);
+  for(let i=0;i<n;i++) d[i]=(Math.random()*2-1)*(1-i/n);
+  const s=actx.createBufferSource(); s.buffer=b;
+  const g=actx.createGain(); g.gain.value=vol||0.22;
+  const f=actx.createBiquadFilter(); f.type='lowpass'; f.frequency.value=1800;
+  s.connect(f); f.connect(g); g.connect(actx.destination); s.start();
+}
+const SFX={
+  jump:()=>tone(320,0.16,'square',0.10,700),
+  land:()=>tone(150,0.07,'sine',0.08,90),
+  spin:()=>tone(180,0.3,'sawtooth',0.07,540),
+  fruit:()=>{tone(880,0.09,'sine',0.13);setTimeout(()=>tone(1320,0.1,'sine',0.11),70);},
+  crate:()=>{noise(0.22,0.24);tone(210,0.12,'square',0.08,90);},
+  boom:()=>{noise(0.55,0.4);tone(90,0.45,'sawtooth',0.16,32);},
+  stomp:()=>{tone(520,0.08,'square',0.12,180);noise(0.12,0.14);},
+  hurt:()=>tone(420,0.4,'sawtooth',0.15,70),
+  check:()=>{tone(660,0.1,'sine',0.12);setTimeout(()=>tone(990,0.18,'sine',0.12),90);},
+  win:()=>[0,120,240,420].forEach((d,i)=>setTimeout(()=>tone([523,659,784,1047][i],0.3,'sine',0.14),d)),
+};
+
+/* ------------------------------------------------------------------ 世界 */
+const solids=[];      // ぶつかる床・箱
+const crates=[];      // 壊せる箱（solids にも入る）
+const fruits=[];
+const enemies=[];
+const movers=[];      // 動く床
+const decor=[];       // 飾り（当たり判定なし）
+const checkpoints=[];
+const particles=[];
+let goal=null, crateTotal=0;
+
+function solid(x,y,z,hx,hy,hz,color,opt){
+  const s=Object.assign({x,y,z,hx,hy,hz,color,kind:'plat',alive:true},opt||{});
+  solids.push(s); return s;
+}
+/* 上面の高さ top で床を置く */
+function plat(x,z,w,d,top,color){
+  return solid(x,top-0.9,z,w/2,0.9,d/2,color||C.ground,{top});
+}
+function crate(x,bottom,z,type){
+  const c=solid(x,bottom+0.5,z,0.5,0.5,0.5,C.wood,{kind:'crate',type,fuse:-1,bounced:0});
+  if(type==='tnt') c.color=C.tnt;
+  else if(type==='steel') c.color=C.steel;
+  else if(type==='bounce') c.color=C.bounce;
+  else if(type==='fruit') c.color=C.fruitBox;
+  crates.push(c);
+  if(type!=='steel'&&type!=='bounce') crateTotal++;
+  return c;
+}
+function fruit(x,y,z){ fruits.push({x,y,z,got:false,ph:Math.random()*6.28}); }
+function fruitArc(x,y,z,n,dz,h){
+  for(let i=0;i<n;i++){
+    const t=i/(n-1||1);
+    fruits.push({x,y:y+Math.sin(t*Math.PI)*(h||0),z:z+dz*i,got:false,ph:Math.random()*6.28});
+  }
+}
+function enemy(x,y,z,x0,x1,spd){
+  enemies.push({x,y,z,x0,x1,spd:spd||2.2,dir:1,alive:true,ph:Math.random()*6.28,hx:0.5,hy:0.55,hz:0.5});
+}
+function mover(x,y,z,w,d,axis,range,spd,phase){
+  const m=solid(x,y,z,w/2,0.5,d/2,C.stone,{kind:'mover'});
+  m.base={x,y,z}; m.axis=axis; m.range=range; m.spd=spd||1.0; m.phase=phase||0;
+  m.prev={x:m.x,y:m.y,z:m.z};
+  movers.push(m); return m;
+}
+function tree(x,y,z,s){
+  s=s||1;
+  decor.push({t:'tree',x,y,z,s,ph:Math.random()*6.28});
+}
+function rock(x,y,z,s){ decor.push({t:'rock',x,y,z,s:s||1,r:Math.random()*3}); }
+function checkpoint(x,y,z){ checkpoints.push({x,y,z,on:false,ph:0}); }
+
+/* ================================ ステージを作る ================================ */
+function buildLevel(){
+  /* --- 第1エリア：ひろい地面でウォーミングアップ --- */
+  plat(0,19,13,52,0);
+  for(let i=0;i<7;i++){ tree(-7.2,0,-2+i*8,rnd(0.9,1.3)); tree(7.2,0,2+i*8,rnd(0.9,1.3)); }
+  rock(-4.5,0,4,1.2); rock(5,0,12,0.9);
+  fruitArc(0,1.2,4,6,1.6,0.8);
+  crate(-1,0,22,'wood'); crate(0,0,22,'fruit'); crate(1,0,22,'wood'); crate(0,1,22,'wood');
+  fruit(0,2.6,22);
+  enemy(0,0,32,-3.5,3.5,2.4);
+  fruitArc(-3,1.2,28,4,1.5,0);
+  checkpoint(0,0,39);
+
+  /* --- 第2エリア：とびとびの足場（すきまは約2マス） --- */
+  plat(0,52,9,10,0);
+  fruitArc(0,1.6,46,3,1.0,0.9);
+  crate(-1.5,0,52,'wood'); crate(1.5,0,52,'wood');
+  plat(-1.5,64,9,10,0.9);
+  fruitArc(-1,2.4,58,3,1.2,0.9);
+  enemy(-1.5,0.9,65,-4.5,1.5,1.9);
+  plat(1.5,76,9,10,1.8);
+  fruitArc(0,3.2,70,3,1.2,0.9);
+  crate(1.5,1.8,74,'bounce');
+  fruit(1.5,6.6,76); fruit(1.5,7.6,76);
+  plat(0,88,12,13,0.9);
+  fruitArc(1.2,2.6,82,3,1.4,0.8);
+  tree(-4.6,0.9,86,1.1); tree(4.6,0.9,90,1.1);
+  crate(-2,0.9,88,'wood'); crate(-2,1.9,88,'fruit');
+  crate(2,0.9,88,'tnt');
+  checkpoint(0,0.9,92);
+
+  /* --- 第3エリア：動く足場（あいだに小さな足場を置いて休めるように） --- */
+  mover(0,1.0,99,5,5,'x',3.2,0.55);            // 左右に動く
+  fruit(0,2.4,99);
+  plat(0,106,7,7,1.2,C.stone);
+  fruit(0,2.6,106);
+  mover(0,1.6,114,5,5,'x',3.2,0.7,2.2);        // 左右（さっきと逆の動き）
+  fruit(0,3.0,114);
+  plat(0,121,7,7,1.8,C.stone);
+  fruit(-1,3.2,121); fruit(1,3.2,121);
+  mover(0,2.0,131,5,5,'z',3.0,0.5,1.0);        // 前後に動く「わたし舟」
+  fruit(0,3.4,131);
+  plat(0,142,10,10,1.8);
+  crate(-2,1.8,141,'wood'); crate(2,1.8,141,'wood');
+  tree(-4,1.8,142,1.0);
+  checkpoint(0,1.8,145);
+
+  /* --- 第4エリア：てきとTNTの通路 --- */
+  plat(0,156,5.5,17,1.8,C.stone);
+  enemy(0,1.8,152,-1.6,1.6,2.6);
+  enemy(0,1.8,160,-1.6,1.6,3.0);
+  fruitArc(0,3.0,150,8,1.6,0);
+  plat(0,172,13,15,1.8);
+  crate(-3,1.8,169,'steel'); crate(-3,2.8,169,'wood');
+  crate(0,1.8,169,'tnt');
+  crate(3,1.8,169,'wood'); crate(3,2.8,169,'fruit'); crate(3,3.8,169,'wood');
+  enemy(-4,1.8,176,-5,5,2.8);
+  fruitArc(2,3.0,174,4,1.5,0.8);
+  tree(-6,1.8,167,1.2); tree(6,1.8,175,1.2);
+
+  /* すきま → バウンド箱で高いところへ */
+  plat(0,187,9,10,1.8);
+  crate(0,1.8,184.5,'bounce');
+  plat(0,188.5,4.5,4.5,6.4,C.stone);   // バウンド箱の真上をふさがない位置に
+  fruitArc(0,7.6,187.4,3,1.1,0.5);
+  crate(-3,1.8,189,'wood'); crate(3,1.8,189,'wood');
+
+  /* --- 最終エリア --- */
+  plat(0,205,15,22,1.8);
+  enemy(-3,1.8,199,-6,6,3.0);
+  enemy(3,1.8,208,-6,6,2.4);
+  crate(-1,1.8,202,'wood'); crate(0,1.8,202,'tnt'); crate(1,1.8,202,'wood');
+  crate(0,2.8,202,'wood');
+  crate(-2.5,1.8,208,'fruit'); crate(2.5,1.8,208,'fruit');
+  fruitArc(0,3.0,195,5,1.5,0.6);
+  for(let i=0;i<5;i++){ tree(-7.2,1.8,196+i*4,rnd(1,1.4)); tree(7.2,1.8,198+i*4,rnd(1,1.4)); }
+  goal={x:0,y:1.8,z:213.5,ph:0};
+}
+
+/* ------------------------------------------------------------------ 主人公 */
+const P={
+  x:0,y:2,z:0,          // ← 体の「まんなか」の位置
+  vx:0,vy:0,vz:0,
+  hx:0.38,hy:0.75,hz:0.38,
+  face:0, onGround:false, ground:null,
+  coyote:0, jumpBuf:0, spin:0, spinCd:0,
+  invuln:0, walk:0, squash:1,
+};
+const GRAV=44, JUMP=15.2, SPEED=9.2, ACC=60, AIRACC=34, FRIC=13;
+const SPIN_TIME=0.42, SPIN_CD=0.18, SPIN_R=1.55;
+
+let lives=4, fruitCount=0, crateCount=0, timeSec=0;
+let respawn={x:0,y:2,z:0};
+let state='title';          // title / play / dying / gameover / win
+let dieTimer=0, winTimer=0;
+let shake=0;
+
+/* ------------------------------------------------------------------ 入力 */
+const keys={};
+const input={x:0,z:0,jump:false,jumpPressed:false,spin:false};
+addEventListener('keydown',e=>{
+  if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
+  if(!keys[e.code]){
+    if(e.code==='Space'||e.code==='KeyZ'||e.code==='KeyK') input.jumpPressed=true;
+  }
+  keys[e.code]=true;
+  if(e.code==='KeyR'&&(state==='play'||state==='gameover'||state==='win')) restart();
+  if(e.code==='Enter'&&state!=='play') startFromScreen();
+});
+addEventListener('keyup',e=>{ keys[e.code]=false; });
+addEventListener('blur',()=>{ for(const k in keys) keys[k]=false; });
+
+function readKeys(){
+  const L=keys.ArrowLeft||keys.KeyA, R=keys.ArrowRight||keys.KeyD;
+  const U=keys.ArrowUp||keys.KeyW, D=keys.ArrowDown||keys.KeyS;
+  // カメラは後ろから見ているので「画面の右」＝ワールドの -x
+  let ix=(L?1:0)-(R?1:0);
+  let iz=(U?1:0)-(D?1:0);
+  input.x=ix+touchVec.x; input.z=iz+touchVec.z;
+  const l=Math.hypot(input.x,input.z);
+  if(l>1){ input.x/=l; input.z/=l; }
+  input.jump=!!(keys.Space||keys.KeyZ||keys.KeyK)||touchJump;
+  input.spin=!!(keys.ShiftLeft||keys.ShiftRight||keys.KeyX||keys.KeyJ)||touchSpin;
+}
+
+/* --- タッチ操作 --- */
+let touchVec={x:0,z:0}, touchJump=false, touchSpin=false;
+const stick=document.getElementById('stick');
+const knobBase=document.getElementById('knobBase'), knob=document.getElementById('knob');
+let stickId=null, sx0=0, sy0=0;
+stick.addEventListener('pointerdown',e=>{
+  stickId=e.pointerId; sx0=e.clientX; sy0=e.clientY;
+  const r=stick.getBoundingClientRect();
+  knobBase.style.left=knob.style.left=(sx0-r.left)+'px';
+  knobBase.style.top=knob.style.top=(sy0-r.top)+'px';
+  stick.classList.add('act'); stick.setPointerCapture(e.pointerId); audioInit();
+});
+stick.addEventListener('pointermove',e=>{
+  if(e.pointerId!==stickId) return;
+  let dx=e.clientX-sx0, dy=e.clientY-sy0;
+  const m=Math.hypot(dx,dy), max=58;
+  if(m>max){ dx*=max/m; dy*=max/m; }
+  const r=stick.getBoundingClientRect();
+  knob.style.left=(sx0-r.left+dx)+'px'; knob.style.top=(sy0-r.top+dy)+'px';
+  const k=1/max;
+  touchVec.x=clamp(-dx*k,-1,1);   // 画面右 → ワールド -x
+  touchVec.z=clamp(-dy*k,-1,1);   // 画面上 → ワールド +z
+});
+const stickEnd=e=>{ if(e.pointerId!==stickId) return; stickId=null; touchVec.x=0; touchVec.z=0; stick.classList.remove('act'); };
+stick.addEventListener('pointerup',stickEnd);
+stick.addEventListener('pointercancel',stickEnd);
+function hookBtn(id,set){
+  const el=document.getElementById(id);
+  el.addEventListener('pointerdown',e=>{e.preventDefault();audioInit();set(true);if(id==='bJump')input.jumpPressed=true;});
+  const off=e=>{e.preventDefault();set(false);};
+  el.addEventListener('pointerup',off); el.addEventListener('pointercancel',off); el.addEventListener('pointerleave',off);
+}
+hookBtn('bJump',v=>touchJump=v);
+hookBtn('bSpin',v=>touchSpin=v);
+if(matchMedia('(pointer:coarse)').matches) document.getElementById('touch').classList.add('on');
+
+/* ------------------------------------------------------------------ 当たり判定 */
+function hits(a,s,k,pad){
+  pad=pad||0;
+  return Math.abs(a.x-s.x)<a.hx+s.hx+pad &&
+         Math.abs(a.y-s.y)<a.hy+s.hy+pad &&
+         Math.abs(a.z-s.z)<a.hz+s.hz+pad;
+}
+function moveAxis(k,d){
+  if(d===0) return;
+  P[k]+=d;
+  const hk='h'+k;
+  for(const s of solids){
+    if(!s.alive) continue;
+    if(Math.abs(P.z-s.z)>P.hz+s.hz+2) continue;
+    if(!hits(P,s)) continue;
+    if(d>0) P[k]=s[k]-s[hk]-P[hk];
+    else    P[k]=s[k]+s[hk]+P[hk];
+    if(k==='y'){
+      if(d<0){
+        if(!P.onGround && P.vy<-6) SFX.land();
+        P.vy=0;
+        P.onGround=true; P.ground=s; P.squash=0.78;
+        onLandOn(s);   // バウンド箱などが vy を書きかえるので、0 にしたあとで呼ぶ
+      } else {
+        P.vy=0;        // 天井にぶつかったとき
+      }
+    } else {
+      P['v'+k]=0;
+    }
+  }
+}
+
+/* 箱の上に乗ったとき */
+function onLandOn(s){
+  if(s.kind!=='crate') return;
+  if(s.type==='bounce'){
+    P.vy=22; P.onGround=false; P.squash=0.7;
+    tone(420,0.14,'square',0.12,900);
+  } else if(s.type==='tnt'){
+    if(s.fuse<0){ s.fuse=1.4; tone(880,0.08,'square',0.1); }
+  } else {
+    breakCrate(s);
+    P.vy=8.5; P.onGround=false;
+  }
+}
+
+/* こわせる箱かどうか（鉄の箱とバウンド箱はこわれない） */
+function breakable(c){ return c.alive&&c.type!=='steel'&&c.type!=='bounce'; }
+
+function breakCrate(c,silent){
+  if(!breakable(c)) return;
+  c.alive=false; crateCount++;
+  if(c.type==='fruit'){ for(let i=0;i<5;i++) addFruitPop(c.x,c.y,c.z); }
+  else if(c.type!=='tnt'&&Math.random()<0.5) addFruitPop(c.x,c.y,c.z);
+  burst(c.x,c.y,c.z,c.color,10);
+  if(!silent) SFX.crate();
+  if(c.type==='tnt') explode(c.x,c.y,c.z);
+}
+function addFruitPop(x,y,z){
+  fruitCount++; SFX.fruit();
+  burst(x,y+0.3,z,C.fruit,4,0.14);
+}
+function explode(x,y,z){
+  SFX.boom(); shake=0.55;
+  burst(x,y,z,[1,0.8,0.3],26,0.3);
+  for(const c of crates){
+    if(breakable(c)&&Math.hypot(c.x-x,c.y-y,c.z-z)<2.8) breakCrate(c,true);
+  }
+  for(const e of enemies) if(e.alive&&Math.hypot(e.x-x,e.y+0.55-y,e.z-z)<3.2) killEnemy(e);
+  if(P.invuln<=0&&Math.hypot(P.x-x,P.y-y,P.z-z)<3.0) hurt();
+}
+function killEnemy(e){
+  e.alive=false; burst(e.x,e.y+0.5,e.z,C.enemy,12);
+  fruitCount++; SFX.stomp();
+}
+function burst(x,y,z,color,n,life){
+  for(let i=0;i<n;i++){
+    particles.push({x,y,z,
+      vx:rnd(-4,4),vy:rnd(1,7),vz:rnd(-4,4),
+      s:rnd(0.10,0.26),color,life:life||rnd(0.5,0.9),max:1,rot:rnd(0,6.28),rv:rnd(-9,9)});
+  }
+}
+
+/* ------------------------------------------------------------------ ダメージ */
+function hurt(){
+  if(P.invuln>0||state!=='play') return;
+  lives=Math.max(0,lives-1); SFX.hurt(); shake=0.4;
+  burst(P.x,P.y,P.z,[1,0.4,0.3],14);
+  updateHud();
+  if(lives<=0) die();
+  else { P.invuln=1.8; P.vy=9; P.vz=-4; }
+}
+/* 穴に落ちたとき */
+function fallOut(){
+  if(state!=='play') return;
+  lives=Math.max(0,lives-1); SFX.hurt(); updateHud(); die();
+}
+function die(){
+  state='dying'; dieTimer=1.0; P.invuln=0; P.spin=0; P.vy=Math.max(P.vy,7);
+}
+function respawnPlayer(){
+  P.x=respawn.x; P.y=respawn.y+0.9; P.z=respawn.z;
+  P.vx=P.vy=P.vz=0; P.invuln=1.4; P.spin=0; P.onGround=false; P.ground=null;
+  // リスポーン地点より先の敵だけ戻す。倒したときに増えたぶんも取り消して、
+  // 「倒す → わざと落ちる」でくだものの数をかせげないようにする。
+  for(const e of enemies){
+    if(e.alive||e.z<=respawn.z-2) continue;
+    e.alive=true; fruitCount=Math.max(0,fruitCount-1);
+  }
+  state='play';
+}
+
+/* ------------------------------------------------------------------ 更新 */
+function update(dt){
+  timeSec+=dt;
+  readKeys();
+  if(input.jumpPressed){ P.jumpBuf=0.14; input.jumpPressed=false; }
+
+  /* 動く床 */
+  for(const m of movers){
+    m.prev.x=m.x; m.prev.y=m.y; m.prev.z=m.z;
+    m.phase+=dt*m.spd;
+    const o=Math.sin(m.phase)*m.range;
+    if(m.axis==='x') m.x=m.base.x+o; else if(m.axis==='z') m.z=m.base.z+o; else m.y=m.base.y+o;
+  }
+  /* 乗っている床にくっついて動く */
+  if(P.ground&&P.ground.kind==='mover'&&P.onGround){
+    P.x+=P.ground.x-P.ground.prev.x;
+    P.y+=P.ground.y-P.ground.prev.y;
+    P.z+=P.ground.z-P.ground.prev.z;
+  }
+
+  /* ---- 移動 ---- */
+  const acc=P.onGround?ACC:AIRACC;
+  const tx=input.x*SPEED, tz=input.z*SPEED;
+  const spinning=P.spin>0;
+  const ctrl=spinning?0.55:1;
+  P.vx+=clamp(tx-P.vx,-acc*dt*ctrl,acc*dt*ctrl);
+  P.vz+=clamp(tz-P.vz,-acc*dt*ctrl,acc*dt*ctrl);
+  // レバーを離したらだんだん止まる（地上はすぐ、空中はゆっくり）
+  const damp=Math.pow(P.onGround?FRIC*0.0001:0.35,dt);
+  if(Math.abs(input.x)<0.01) P.vx*=damp;
+  if(Math.abs(input.z)<0.01) P.vz*=damp;
+
+  /* 向き */
+  const sp=Math.hypot(P.vx,P.vz);
+  if(sp>0.6&&!spinning) P.face=Math.atan2(P.vx,P.vz);
+  P.walk+=sp*dt*1.5;
+
+  /* ジャンプ */
+  P.coyote=P.onGround?0.12:Math.max(0,P.coyote-dt);
+  P.jumpBuf=Math.max(0,P.jumpBuf-dt);
+  if(P.jumpBuf>0&&P.coyote>0){
+    P.vy=JUMP; P.jumpBuf=0; P.coyote=0; P.onGround=false; P.squash=1.22; SFX.jump();
+  }
+  if(P.vy>0&&!input.jump) P.vy-=GRAV*0.9*dt;    // ボタンを離すと低いジャンプ
+  P.vy-=GRAV*dt;
+  if(spinning&&P.vy<-4) P.vy=-4;                 // スピン中はふんわり落ちる
+  P.vy=Math.max(P.vy,-34);
+
+  /* スピン */
+  P.spinCd=Math.max(0,P.spinCd-dt);
+  if(P.spin>0) P.spin-=dt;
+  else if(input.spin&&P.spinCd<=0){ P.spin=SPIN_TIME; P.spinCd=SPIN_TIME+SPIN_CD; SFX.spin(); }
+
+  /* ---- 当たり判定つきで動かす ---- */
+  P.onGround=false;
+  moveAxis('y',P.vy*dt);
+  moveAxis('x',P.vx*dt);
+  moveAxis('z',P.vz*dt);
+  if(!P.onGround) P.ground=null;
+  P.squash=lerp(P.squash,1,dt*9);
+  P.invuln=Math.max(0,P.invuln-dt);
+
+  /* スピンで箱と敵をこわす */
+  if(P.spin>0){
+    for(const c of crates) if(breakable(c)&&
+      Math.abs(c.x-P.x)<SPIN_R&&Math.abs(c.z-P.z)<SPIN_R&&Math.abs(c.y-P.y)<1.3) breakCrate(c);
+    for(const e of enemies) if(e.alive&&
+      Math.hypot(e.x-P.x,e.z-P.z)<SPIN_R+0.4&&Math.abs(e.y+0.5-P.y)<1.4) killEnemy(e);
+  }
+
+  /* ---- 敵 ---- */
+  for(const e of enemies){
+    if(!e.alive) continue;
+    e.x+=e.spd*e.dir*dt; e.ph+=dt*8;
+    if(e.x>e.x1){ e.x=e.x1; e.dir=-1; } if(e.x<e.x0){ e.x=e.x0; e.dir=1; }
+    if(Math.abs(e.z-P.z)<2.5){
+      const a={x:P.x,y:P.y,z:P.z,hx:P.hx,hy:P.hy,hz:P.hz};
+      const b={x:e.x,y:e.y+0.55,z:e.z,hx:e.hx,hy:e.hy,hz:e.hz};
+      if(hits(a,b)){
+        if(P.vy<-1&&P.y-P.hy>e.y+0.5){ killEnemy(e); P.vy=13; P.squash=1.2; }
+        else hurt();
+      }
+    }
+  }
+
+  /* ---- くだもの ---- */
+  for(const f of fruits){
+    if(f.got) continue;
+    f.ph+=dt*3;
+    if(Math.abs(f.z-P.z)>3) continue;
+    if(Math.hypot(f.x-P.x,f.y-P.y,f.z-P.z)<1.15){
+      f.got=true; fruitCount++; SFX.fruit(); burst(f.x,f.y,f.z,C.fruit,4,0.2);
+    }
+  }
+
+  /* ---- TNT の導火線 ---- */
+  for(const c of crates){
+    if(c.alive&&c.type==='tnt'&&c.fuse>0){
+      c.fuse-=dt;
+      if(c.fuse<=0){ c.alive=false; crateCount++; explode(c.x,c.y,c.z); }
+    }
+  }
+
+  /* ---- チェックポイント ---- */
+  for(const cp of checkpoints){
+    cp.ph+=dt*2;
+    if(!cp.on&&Math.abs(cp.z-P.z)<1.6&&Math.abs(cp.x-P.x)<3.5){
+      cp.on=true; respawn={x:cp.x,y:cp.y+1,z:cp.z}; SFX.check(); toast('チェックポイント！');
+    }
+  }
+
+  /* ---- ゴール ---- */
+  if(goal){
+    goal.ph+=dt*2;
+    if(Math.hypot(goal.x-P.x,goal.z-P.z)<2.2&&Math.abs(goal.y+1-P.y)<3){
+      state='win'; winTimer=0; SFX.win(); showWin();
+    }
+  }
+
+  /* ---- 落ちたら ---- */
+  if(P.y<-12) fallOut();
+
+  /* ---- こな（パーティクル） ---- */
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    p.life-=dt; if(p.life<=0){ particles.splice(i,1); continue; }
+    p.vy-=GRAV*0.55*dt;
+    p.x+=p.vx*dt; p.y+=p.vy*dt; p.z+=p.vz*dt; p.rot+=p.rv*dt;
+    if(p.y<-14){ particles.splice(i,1); }
+  }
+  shake=Math.max(0,shake-dt*1.6);
+  updateHud();
+}
+
+/* ------------------------------------------------------------------ カメラ */
+const cam={x:0,y:5,z:-9,tx:0,ty:0,tz:0};
+function updateCamera(dt){
+  const goalY=P.y+2.6, goalZ=P.z-8.2, goalX=P.x*0.55;
+  const k=1-Math.pow(0.0015,dt);
+  cam.x=lerp(cam.x,goalX,k); cam.y=lerp(cam.y,goalY,k); cam.z=lerp(cam.z,goalZ,k);
+  cam.tx=lerp(cam.tx,P.x*0.8,k); cam.ty=lerp(cam.ty,P.y+0.7,k); cam.tz=lerp(cam.tz,P.z+2.5,k);
+}
+
+/* ------------------------------------------------------------------ 描画 */
+const proj=mat4(), view=mat4();
+function shadow(x,y,z,r,strength){
+  draw(MESH.cube,x,y+0.02,z,0,r,0.02,r,[0,0,0],1,strength);
+}
+function groundY(x,z){
+  let best=-999;
+  for(const s of solids){
+    if(!s.alive) continue;
+    if(Math.abs(x-s.x)<s.hx+0.3&&Math.abs(z-s.z)<s.hz+0.3){
+      const t=s.y+s.hy; if(t>best&&t<=P.y+0.2) best=t;
+    }
+  }
+  return best;
+}
+
+function drawPlayer(){
+  const blink=P.invuln>0&&Math.floor(P.invuln*14)%2===0;
+  if(blink) return;
+  const bx=P.x, by=P.y-P.hy, bz=P.z;   // 足元
+  const sq=P.squash, st=1/Math.sqrt(sq);
+  let rot=P.face;
+  if(P.spin>0) rot+=(SPIN_TIME-P.spin)*34;
+  const c=Math.cos(rot), s=Math.sin(rot);
+  const at=(ox,oy,oz)=>[bx+ox*c+oz*s, by+oy*sq, bz-ox*s+oz*c];  // 体のローカル→ワールド
+  const swing=Math.sin(P.walk*3)*(P.onGround?1:0.3);
+  const lift=P.onGround?0:0.12;
+
+  // しっぽ
+  let p=at(0,0.55,-0.42); box(p[0],p[1],p[2],0.16,0.16,0.34,C.body,rot);
+  // 足
+  p=at(-0.19,0.16+lift+Math.max(0,swing)*0.1,swing*0.22);
+  box(p[0],p[1],p[2],0.24,0.34*st,0.34,C.jeans,rot);
+  p=at(0.19,0.16+lift+Math.max(0,-swing)*0.1,-swing*0.22);
+  box(p[0],p[1],p[2],0.24,0.34*st,0.34,C.jeans,rot);
+  // くつ
+  p=at(-0.19,0.06+lift,swing*0.22+0.06); box(p[0],p[1],p[2],0.28,0.16,0.42,C.dark,rot);
+  p=at(0.19,0.06+lift,-swing*0.22+0.06); box(p[0],p[1],p[2],0.28,0.16,0.42,C.dark,rot);
+  // 体
+  p=at(0,0.66,0); box(p[0],p[1],p[2],0.62,0.56*sq,0.48,C.body,rot);
+  p=at(0,0.62,0.19); box(p[0],p[1],p[2],0.40,0.40*sq,0.16,C.belly,rot);
+  // 手
+  const arm=P.spin>0?0.5:0.18;
+  p=at(-0.40,0.72-swing*0.1,arm*0+swing*0.2);
+  box(p[0],p[1],p[2],0.20,0.34,0.20,C.body,rot);
+  p=at(0.40,0.72+swing*0.1,-swing*0.2);
+  box(p[0],p[1],p[2],0.20,0.34,0.20,C.body,rot);
+  if(P.spin>0){
+    p=at(-0.78,0.75,0); box(p[0],p[1],p[2],0.34,0.20,0.20,C.belly,rot);
+    p=at(0.78,0.75,0);  box(p[0],p[1],p[2],0.34,0.20,0.20,C.belly,rot);
+  }
+  // 頭
+  p=at(0,1.16,0.02); box(p[0],p[1],p[2],0.66,0.52*sq,0.60,C.body,rot);
+  p=at(0,1.06,0.30); box(p[0],p[1],p[2],0.34,0.26,0.16,C.belly,rot); // 口もと
+  p=at(0,1.06,0.38); box(p[0],p[1],p[2],0.14,0.12,0.08,C.black,rot); // 鼻
+  // 目
+  for(const sgn of [-1,1]){
+    p=at(sgn*0.17,1.30,0.29); box(p[0],p[1],p[2],0.20,0.24,0.10,C.white,rot);
+    p=at(sgn*0.17,1.30,0.34); box(p[0],p[1],p[2],0.09,0.12,0.04,C.black,rot);
+  }
+  // 耳と髪
+  for(const sgn of [-1,1]){ p=at(sgn*0.30,1.46,0); box(p[0],p[1],p[2],0.14,0.18,0.14,C.dark,rot); }
+  p=at(0,1.48,-0.02); box(p[0],p[1],p[2],0.36,0.16,0.30,C.dark,rot);
+  p=at(0,1.58,-0.12); box(p[0],p[1],p[2],0.20,0.18,0.16,C.dark,rot);
+
+  const gy=groundY(P.x,P.z);
+  if(gy>-900&&P.y-gy<7) shadow(P.x,gy,P.z,1.0-clamp((P.y-gy)/8,0,0.6),0.34*(1-clamp((P.y-gy)/8,0,0.8)));
+}
+
+function drawWorld(){
+  const near=P.z-24, far=P.z+62;
+  // 床・箱
+  for(const s of solids){
+    if(!s.alive) continue;
+    if(s.z+s.hz<near||s.z-s.hz>far) continue;
+    if(s.kind==='crate'){
+      let col=s.color;
+      let emis=0;
+      if(s.type==='tnt'&&s.fuse>0){
+        const fl=Math.floor(s.fuse*10)%2===0;
+        col=fl?[1,0.95,0.9]:C.tnt; emis=0.6;
+      }
+      box(s.x,s.y,s.z,1,1,1,col,0,emis);
+      // 木箱の枠
+      const fr=s.type==='steel'?[0.35,0.38,0.45]:C.woodDark;
+      box(s.x,s.y+0.5,s.z,1.02,0.1,1.02,fr);
+      box(s.x,s.y-0.5,s.z,1.02,0.1,1.02,fr);
+      for(const dx of [-0.46,0.46]) box(s.x+dx,s.y,s.z,0.1,1.01,1.01,fr);
+      if(s.type==='bounce'){ box(s.x,s.y+0.56,s.z,0.5,0.12,0.5,[1,1,0.5],0,0.5); }
+      if(s.type==='fruit'){ ball(s.x,s.y,s.z+0.53,0.34,C.fruit,0.3); }
+      if(s.type==='tnt'){ box(s.x,s.y+0.6,s.z,0.12,0.24,0.12,[0.2,0.2,0.2]); }
+    } else {
+      box(s.x,s.y,s.z,s.hx*2,s.hy*2,s.hz*2,s.color);
+      // 上面のふち（芝生っぽく）
+      if(s.kind!=='mover'&&s.color===C.ground){
+        box(s.x,s.y+s.hy-0.06,s.z,s.hx*2+0.06,0.22,s.hz*2+0.06,C.grass);
+      }
+      if(s.kind==='mover'){
+        box(s.x,s.y+s.hy-0.05,s.z,s.hx*2+0.1,0.2,s.hz*2+0.1,[0.9,0.75,0.3],0,0.25);
+      }
+      // 地面の下の柱
+      if(s.kind==='plat'){
+        box(s.x,s.y-s.hy-1.6,s.z,s.hx*1.2,3.2,s.hz*1.2,[0.42,0.34,0.24]);
+      }
+    }
+  }
+  // かざり
+  for(const d of decor){
+    if(d.z<near||d.z>far) continue;
+    if(d.t==='tree'){
+      const sw=Math.sin(performance.now()*0.001+d.ph)*0.06;
+      box(d.x,d.y+1.1*d.s,d.z,0.32*d.s,2.2*d.s,0.32*d.s,C.trunk,sw*0.3);
+      for(let i=0;i<4;i++){
+        const a=i*1.57+sw;
+        box(d.x+Math.cos(a)*0.85*d.s,d.y+2.3*d.s,d.z+Math.sin(a)*0.85*d.s,
+            1.5*d.s,0.22*d.s,0.5*d.s,C.leaf,a);
+      }
+      box(d.x,d.y+2.5*d.s,d.z,0.6*d.s,0.3*d.s,0.6*d.s,C.leaf);
+    } else {
+      box(d.x,d.y+0.28*d.s,d.z,0.9*d.s,0.6*d.s,0.8*d.s,C.stone,d.r);
+    }
+  }
+  // くだもの
+  const t=performance.now()*0.001;
+  for(const f of fruits){
+    if(f.got||f.z<near||f.z>far) continue;
+    const y=f.y+Math.sin(t*2.4+f.ph)*0.16;
+    ball(f.x,y,f.z,0.42,C.fruit,0.45);
+    box(f.x,y+0.3,f.z,0.09,0.22,0.09,[0.3,0.5,0.2],t+f.ph);
+  }
+  // 敵
+  for(const e of enemies){
+    if(!e.alive||e.z<near||e.z>far) continue;
+    const wob=Math.sin(e.ph)*0.07;
+    const r=e.dir>0?-1.57:1.57;
+    box(e.x,e.y+0.42+wob*0.3,e.z,1.0,0.7,0.95,C.enemyShell,r);
+    box(e.x,e.y+0.80,e.z,0.7,0.35,0.7,C.enemyDark,r);
+    box(e.x-e.dir*0.0,e.y+0.5,e.z+0.0,0.3,0.3,0.3,C.enemy,r);
+    // 頭（進む向きへ）
+    const hx=e.dir*0.62;
+    box(e.x+hx,e.y+0.55,e.z,0.45,0.42,0.45,C.enemy,r);
+    box(e.x+hx*1.15,e.y+0.62,e.z-0.13,0.16,0.16,0.12,C.white,r);
+    box(e.x+hx*1.15,e.y+0.62,e.z+0.13,0.16,0.16,0.12,C.white,r);
+    // 足
+    for(const sgn of [-1,1])
+      box(e.x-e.dir*0.25,e.y+0.12,e.z+sgn*0.34,0.28,0.26,0.26,C.enemyDark,r);
+    shadow(e.x,e.y,e.z,0.9,0.28);
+  }
+  // チェックポイント
+  for(const cp of checkpoints){
+    if(cp.z<near||cp.z>far) continue;
+    const col=cp.on?[0.3,1,0.5]:[0.9,0.9,0.95];
+    box(cp.x,cp.y+1.6,cp.z,0.24,3.2,0.24,[0.5,0.5,0.6]);
+    const w=cp.on?1.5:1.2;
+    box(cp.x+0.75,cp.y+2.7+Math.sin(cp.ph)*0.08,cp.z,w,0.9,0.12,col,0,cp.on?0.6:0.2);
+  }
+  // ゴール
+  if(goal&&goal.z<far){
+    const g=goal;
+    for(const sgn of [-1,1]){
+      box(g.x+sgn*2.0,g.y+2.0,g.z,0.6,4.0,0.6,C.gold,0,0.35);
+      box(g.x+sgn*2.0,g.y+4.2,g.z,0.9,0.5,0.9,C.gold,0,0.5);
+    }
+    box(g.x,g.y+4.2,g.z,4.6,0.5,0.5,C.gold,0,0.5);
+    for(let i=0;i<6;i++){
+      const a=t*1.5+i*1.05;
+      ball(g.x+Math.cos(a)*1.6,g.y+1.6+Math.sin(a*1.7)*0.8,g.z,0.22,[1,0.95,0.6],0.8);
+    }
+  }
+  // こな
+  for(const p of particles){
+    const a=clamp(p.life*2.2,0,1);
+    draw(MESH.cube,p.x,p.y,p.z,p.rot,p.s,p.s,p.s,p.color,0.35,a);
+  }
+  // ずっと下にある水
+  box(P.x,-13,P.z+20,300,1.6,300,C.water,0,0.2);
+}
+
+/* ------------------------------------------------------------------ ループ */
+let last=performance.now();
+function frame(now){
+  requestAnimationFrame(frame);
+  let dt=(now-last)/1000; last=now;
+  dt=Math.min(dt,0.034);
+
+  if(state==='play') update(dt);
+  else if(state==='dying'){
+    dieTimer-=dt;
+    P.y+=(P.vy*=0.98)*dt; P.vy-=GRAV*0.5*dt;
+    for(let i=particles.length-1;i>=0;i--){
+      const p=particles[i]; p.life-=dt; if(p.life<=0){particles.splice(i,1);continue;}
+      p.vy-=GRAV*0.55*dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.z+=p.vz*dt;
+    }
+    if(dieTimer<=0){
+      if(lives<=0) showGameOver();
+      else respawnPlayer();
+    }
+  }
+
+  updateCamera(dt);
+  render();
+}
+function render(){
+  const dpr=Math.min(devicePixelRatio||1,2);
+  const w=Math.floor(innerWidth*dpr), h=Math.floor(innerHeight*dpr);
+  if(canvas.width!==w||canvas.height!==h){ canvas.width=w; canvas.height=h; }
+  gl.viewport(0,0,w,h);
+  gl.clearColor(FOG[0],FOG[1],FOG[2],1);
+  gl.enable(gl.DEPTH_TEST);
+  gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+  gl.clear(gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT);
+
+  const sh=shake>0?shake:0;
+  const ex=cam.x+rnd(-sh,sh)*0.6, ey=cam.y+rnd(-sh,sh)*0.6, ez=cam.z;
+  perspective(proj,1.02,w/h,0.1,260);
+  lookAt(view,ex,ey,ez,cam.tx,cam.ty,cam.tz);
+  gl.uniformMatrix4fv(U.uProj,false,proj);
+  gl.uniformMatrix4fv(U.uView,false,view);
+  gl.uniform3f(U.uLight,0.42,0.80,-0.42);
+  gl.uniform3fv(U.uFog,FOG);
+  gl.uniform1f(U.uFogNear,34);
+  gl.uniform1f(U.uFogFar,105);
+  gl.enableVertexAttribArray(A.pos);
+  gl.enableVertexAttribArray(A.nrm);
+
+  drawWorld();
+  if(state!=='title') drawPlayer();
+  flush(new Float32Array([ex,ey,ez]));
+}
+
+/* ------------------------------------------------------------------ 画面 */
+const $=id=>document.getElementById(id);
+const screenEl=$('screen'), panel=$('panel'), hudEl=$('hud'), toastEl=$('toast');
+let toastT=null;
+function toast(msg){
+  toastEl.textContent=msg; toastEl.classList.add('on');
+  clearTimeout(toastT); toastT=setTimeout(()=>toastEl.classList.remove('on'),1100);
+}
+function fmt(s){ const m=Math.floor(s/60); return m+':'+String(Math.floor(s%60)).padStart(2,'0'); }
+function updateHud(){
+  $('uFruit').textContent=fruitCount;
+  $('uCrate').textContent=crateCount;
+  $('uTime').textContent=fmt(timeSec);
+  $('uCrateMax').textContent=crateTotal;
+  const l=$('lives');
+  if(l.childElementCount!==4){ l.innerHTML='<i class="life"></i>'.repeat(4); }
+  [...l.children].forEach((el,i)=>el.classList.toggle('off',i>=lives));
+}
+function showTitle(){
+  state='title'; hudEl.classList.remove('on'); screenEl.classList.remove('hide');
+  panel.innerHTML=`
+    <h1>バンディ・ラン</h1>
+    <p class="sub">はこをこわして、くだものを集めて、ゴールをめざそう！</p>
+    <div class="keys">
+      <b>← → ↑ ↓ / WASD</b><span>うごく</span>
+      <b>スペース</b><span>ジャンプ（長おしで高く）</span>
+      <b>Shift / X</b><span>スピンこうげき</span>
+      <b>R</b><span>さいしょから</span>
+    </div>
+    <button id="go">スタート</button>`;
+  $('go').onclick=startFromScreen;
+}
+function showGameOver(){
+  state='gameover'; screenEl.classList.remove('hide');
+  panel.innerHTML=`
+    <p class="big">ゲームオーバー…</p>
+    <p class="result">くだもの <span>${fruitCount}</span>こ ／ はこ <span>${crateCount}/${crateTotal}</span></p>
+    <button id="go">もういちど</button>`;
+  $('go').onclick=()=>{restart();};
+}
+function showWin(){
+  hudEl.classList.remove('on'); screenEl.classList.remove('hide');
+  const perfect=crateCount>=crateTotal;
+  panel.innerHTML=`
+    <h1>クリア！</h1>
+    <p class="result">
+      タイム <span>${fmt(timeSec)}</span><br>
+      くだもの <span>${fruitCount}</span>こ<br>
+      こわしたはこ <span>${crateCount}/${crateTotal}</span>${perfect?' 🏆 パーフェクト！':''}
+    </p>
+    <button id="go">もういちど</button>`;
+  $('go').onclick=()=>{restart();};
+}
+function startFromScreen(){
+  audioInit();
+  if(state==='title'){ screenEl.classList.add('hide'); hudEl.classList.add('on'); state='play'; last=performance.now(); }
+  else restart();
+}
+function restart(){
+  solids.length=0; crates.length=0; fruits.length=0; enemies.length=0;
+  movers.length=0; decor.length=0; checkpoints.length=0; particles.length=0;
+  crateTotal=0; crateCount=0; fruitCount=0; lives=4; timeSec=0; shake=0;
+  buildLevel();
+  respawn={x:0,y:1,z:0};
+  P.x=0; P.y=2; P.z=0; P.vx=P.vy=P.vz=0; P.invuln=0; P.spin=0; P.face=0;
+  // 捨てた旧ステージのオブジェクトを P.ground が参照したままにしない
+  P.onGround=false; P.ground=null; P.coyote=0; P.jumpBuf=0; P.spinCd=0; P.squash=1; P.walk=0;
+  cam.x=0; cam.y=5; cam.z=-9; cam.tx=0; cam.ty=1; cam.tz=3;
+  state='play'; screenEl.classList.add('hide'); hudEl.classList.add('on');
+  last=performance.now(); updateHud();
+}
+
+/* ------------------------------------------------------------------ 起動 */
+buildLevel();
+$('uCrateMax').textContent=crateTotal;
+updateHud();
+showTitle();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
