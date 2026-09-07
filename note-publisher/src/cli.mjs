@@ -27,6 +27,7 @@ import {
   fillTitle,
   fillBody,
   insertImages,
+  imageMimeType,
   saveDraft,
   readArticleSummary,
   openPublishScreen,
@@ -254,6 +255,12 @@ async function cmdDraft(args) {
   for (const image of images) {
     if (!image.filePath) {
       console.log(`⚠ ネット上の画像はそのままにしました: ${image.src}`);
+      dropped.push(image);
+      continue;
+    }
+    if (!imageMimeType(image.filePath)) {
+      console.log(`⚠ 扱えない画像の形式です: ${image.filePath}`);
+      console.log("  入れられるのは png / jpg / jpeg / gif / webp です。");
       dropped.push(image);
       continue;
     }

@@ -358,6 +358,19 @@ export async function insertImages(page, images) {
   const results = [];
 
   for (const image of images) {
+    const name = path.basename(image.filePath);
+    const type = imageMimeType(name);
+
+    // 扱えない形式は、画面に触る前に弾く（ふつうは cli 側で先に外れている）。
+    if (!type) {
+      results.push({
+        marker: image.marker,
+        ok: false,
+        reason: `扱えない形式です（${path.extname(name) || "拡張子なし"}）`,
+      });
+      continue;
+    }
+
     const before = await countUploadedImages(page);
     const figuresBefore = await figureIds(page);
 
@@ -374,8 +387,6 @@ export async function insertImages(page, images) {
     await page.waitForTimeout(300);
 
     const base64 = (await fs.readFile(image.filePath)).toString("base64");
-    const name = path.basename(image.filePath);
-    const type = mimeTypeOf(name);
 
     // 選んだ範囲の上に画像を貼り付ける＝目印が画像に置きかわる
     await page.locator("div.ProseMirror").first().evaluate(
@@ -557,12 +568,22 @@ async function waitForUpload(page, before, timeout = 60000) {
   return false;
 }
 
-function mimeTypeOf(name) {
-  const ext = path.extname(name).toLowerCase();
-  if (ext === ".png") return "image/png";
-  if (ext === ".gif") return "image/gif";
-  if (ext === ".webp") return "image/webp";
-  return "image/jpeg";
+// noteに預けられる画像の形式。
+// ここに無い拡張子を「たぶんJPEG」として送ると、中身と名乗りが食い違ったファイルを
+// 預けることになり、断られるか、壊れて表示される。だから送らずに弾く。
+const IMAGE_MIME_TYPES = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+};
+
+/**
+ * ファイル名から画像の種類を決める。扱えない形式なら null を返す。
+ */
+export function imageMimeType(name) {
+  return IMAGE_MIME_TYPES[path.extname(name).toLowerCase()] ?? null;
 }
 
 /**
