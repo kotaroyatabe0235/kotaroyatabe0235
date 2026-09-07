@@ -46,3 +46,5 @@ console.log('自動プレイ -> 状態=' + state + ' / z=' + P.z.toFixed(1) +
   ' / タイム ' + timeSec.toFixed(0) + '秒');
 console.log(state === 'win' ? 'ゴールまで到達できました ✅' : 'ゴールできず ❌');
 if (state !== 'win') process.exit(1);
+// ライフを 999 に戻し続けているので、回数の上限も見ないと難易度の壊れに気づけない
+if (deaths > 4) { console.log('やられすぎです（上限4回）❌'); process.exit(1); }

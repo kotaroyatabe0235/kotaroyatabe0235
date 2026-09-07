@@ -44,3 +44,35 @@ console.log('bot   -> 到達 z=' + maxZ.toFixed(1) + ' / ゴール z=' + goal.z 
 console.log('draw calls (1フレーム分の目安) = ' + Math.round(D.drawCalls() / frames));
 if (err) { console.log('!! 例外: ' + err.stack); process.exit(1); }
 console.log('OK: 例外なしで ' + frames + ' フレーム走りました');
+
+// 4) バウンド箱：上に落ちたら、その上のくだものに届く高さまではね上がるか
+//    （onLandOn() を通る唯一のテスト。ここが無いと箱の不具合がすり抜ける）
+restart();
+for (const k of Object.keys(keys)) keys[k] = false;
+touchVec.x = 0; touchVec.z = 0;
+const BOUNCE = { x: 1.5, z: 74, top: 2.8 };   // crate(1.5,1.8,74,'bounce') の上の面
+const TOP_FRUIT_Y = 7.6;                      // fruit(1.5,7.6,76)
+P.x = BOUNCE.x; P.z = BOUNCE.z; P.y = BOUNCE.top + P.hy + 2;
+P.vx = P.vy = P.vz = 0; P.onGround = false; P.ground = null;
+// ボタンを離すと追加の重力がかかる（低いジャンプ）ので、実際の操作どおり押しっぱなしにする
+keys.Space = true;
+let bPeak = -99, bounces = 0, wasSlow = true;
+for (let i = 0; i < 300; i++) {
+  D.tick(16.7); D.frame(performance.now());
+  bPeak = Math.max(bPeak, P.y);
+  // 箱の上に落ちるたび vy が大きく上向きになる。押しっぱなしでもジャンプは出ないので、
+  // これが立つのはバウンド箱に当たったときだけ
+  if (P.vy > 18 && wasSlow) bounces++;
+  wasSlow = P.vy <= 18;
+}
+console.log('bounce-> 最高点 y=' + bPeak.toFixed(2) + ' / 上のくだもの y=' + TOP_FRUIT_Y +
+  ' / はね返った回数=' + bounces);
+if (bPeak < TOP_FRUIT_Y) {
+  console.log('!! バウンド箱ではね上がれていません（上のくだものに届かない）');
+  process.exit(1);
+}
+if (bounces < 2) {
+  console.log('!! 箱の上で固まっています（落ちてもはね返らない）');
+  process.exit(1);
+}
+console.log('OK: バウンド箱ではね上がって、上のくだものに届きました');
