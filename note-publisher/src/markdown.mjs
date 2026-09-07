@@ -57,9 +57,12 @@ const IMAGE_LINE = /^\s*!\[([^\]]*)\]\(\s*([^)\s]+)(?:\s+"[^"]*")?\s*\)\s*$/;
  * 「あとでここに入れる」という目印だけ先に置いておき、
  * 本文を入れ終わってから、目印を1つずつ画像に入れ替える。
  *
+ * ネット上の画像（http/https）は預けようがないので、目印にしないでそのまま残す。
+ * その場合の `marker` は null になる。
+ *
  * @param {string} markdown - 本文（タイトルを取り除いたもの）
  * @param {string} baseDir - Markdownファイルが置いてあるフォルダ。相対パスの起点になる
- * @returns {{markdown: string, images: Array<{marker: string, alt: string, src: string, filePath: string|null}>}}
+ * @returns {{markdown: string, images: Array<{marker: string|null, alt: string, src: string, filePath: string|null}>}}
  */
 export function extractImages(markdown, baseDir) {
   const images = [];
@@ -73,15 +76,20 @@ export function extractImages(markdown, baseDir) {
       const [, alt, src] = m;
 
       // ネット上の画像（http/https）はこのパソコンに無いので、預けようがない。
-      // その行はそのまま残して、呼び出し側で知らせる。
-      const isRemote = /^https?:\/\//.test(src);
+      // 目印に置きかえると、差し替える相手がいないまま
+      // 本文に「⟦note-image-N⟧」の文字が残ってしまう。だから行はそのまま返す。
+      if (/^https?:\/\//.test(src)) {
+        images.push({ marker: null, alt, src, filePath: null });
+        return line;
+      }
+
       const marker = IMAGE_MARKER(images.length);
 
       images.push({
         marker,
         alt,
         src,
-        filePath: isRemote ? null : resolveFrom(baseDir, src),
+        filePath: resolveFrom(baseDir, src),
       });
 
       return marker;
