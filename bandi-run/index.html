@@ -1099,7 +1099,9 @@ function restart(){
   crateTotal=0; crateCount=0; fruitCount=0; lives=4; timeSec=0; shake=0;
   buildLevel();
   respawn={x:0,y:1,z:0};
-  P.x=0; P.y=2; P.z=0; P.vx=P.vy=P.vz=0; P.alive=true; P.invuln=0; P.spin=0; P.face=0;
+  P.x=0; P.y=2; P.z=0; P.vx=P.vy=P.vz=0; P.invuln=0; P.spin=0; P.face=0;
+  // 捨てた旧ステージのオブジェクトを P.ground が参照したままにしない
+  P.onGround=false; P.ground=null; P.coyote=0; P.jumpBuf=0; P.spinCd=0; P.squash=1; P.walk=0;
   cam.x=0; cam.y=5; cam.z=-9; cam.tx=0; cam.ty=1; cam.tz=3;
   state='play'; screenEl.classList.add('hide'); hudEl.classList.add('on');
   last=performance.now(); updateHud();
