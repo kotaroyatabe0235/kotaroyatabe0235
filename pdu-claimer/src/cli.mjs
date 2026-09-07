@@ -49,7 +49,16 @@ function parseArgs(argv) {
   };
   for (let i = 1; i < argv.length; i++) {
     const a = argv[i];
-    if (a === "--hours") args.hours = Number(argv[++i]);
+    // PDU数はユーザーの申告がすべて。値がおかしいときに黙って既定値へ落とすと、
+    // 「3時間のつもりが2PDUで申請されていた」が起きる。だからここで止める。
+    if (a === "--hours") {
+      const raw = argv[++i];
+      const n = Number(raw);
+      if (!Number.isFinite(n) || n <= 0) {
+        throw new Error(`--hours には0より大きい数を指定してください（受け取った値: ${raw}）`);
+      }
+      args.hours = n;
+    }
     else if (a === "--headless") args.headless = true;
     else if (a === "--yes") args.yes = true;
     else if (a === "--dry-run") args.dryRun = true;
