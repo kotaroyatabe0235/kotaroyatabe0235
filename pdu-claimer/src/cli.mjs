@@ -258,11 +258,20 @@ async function cmdSubmit(args) {
   }
 
   const already = await findClaim(article.key);
-  if (already && already.status === "submitted") {
-    console.error("この記事はすでに申請済みです（台帳にあります）。二重申請を避けるため中止します。");
-    console.error(`  ${already.submittedAt} に ${already.pdu} PDU`);
-    process.exitCode = 1;
-    return;
+  if (already) {
+    if (already.status === "submitted") {
+      console.error("この記事はすでに申請済みです（台帳にあります）。二重申請を避けるため中止します。");
+      console.error(`  ${already.submittedAt} に ${already.pdu} PDU`);
+      process.exitCode = 1;
+      return;
+    }
+
+    // status が unknown＝「送ったが通ったか確かめられなかった」。
+    // PMI側では受理されていることがあるので、黙って進むと二重申請になる。
+    console.log(
+      `⚠ この記事は ${already.submittedAt} に ${already.pdu} PDU で申請を試みた記録があります（status: ${already.status}）。`
+    );
+    console.log("  CCRSの Claim History に入っていないことを確かめてから進めてください。\n");
   }
 
   const claim = buildClaim(article, { hours: args.hours });
