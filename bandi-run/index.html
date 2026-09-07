@@ -570,10 +570,12 @@ function moveAxis(k,d){
     if(k==='y'){
       if(d<0){
         if(!P.onGround && P.vy<-6) SFX.land();
+        P.vy=0;
         P.onGround=true; P.ground=s; P.squash=0.78;
-        onLandOn(s);
+        onLandOn(s);   // バウンド箱などが vy を書きかえるので、0 にしたあとで呼ぶ
+      } else {
+        P.vy=0;        // 天井にぶつかったとき
       }
-      P.vy=0;
     } else {
       P['v'+k]=0;
     }
