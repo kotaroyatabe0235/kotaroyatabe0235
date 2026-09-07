@@ -1,0 +1,17 @@
+{
+  "name": "pdu-claimer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "公開したnote記事を、PMPのPDU（Create Content）として申請するためのツール",
+  "bin": {
+    "pdu-claimer": "./src/cli.mjs"
+  },
+  "scripts": {
+    "login": "node src/cli.mjs login --headless",
+    "list": "node src/cli.mjs list"
+  },
+  "dependencies": {
+    "playwright": "^1.63.0"
+  }
+}
