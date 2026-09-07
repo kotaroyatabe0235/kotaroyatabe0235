@@ -48,6 +48,9 @@ const IMAGE_MARKER = (index) => `⟦note-image-${index}⟧`;
 // `![説明](ファイル名)` だけが書かれている行にあてはめる型。
 const IMAGE_LINE = /^\s*!\[([^\]]*)\]\(\s*([^)\s]+)(?:\s+"[^"]*")?\s*\)\s*$/;
 
+// 文章の途中に混ざった `![説明](ファイル名)` を見つけるための型。
+const INLINE_IMAGE = /!\[[^\]]*\]\([^)\s]+\)/g;
+
 /**
  * 本文から画像の行を抜き出し、そこを「目印」に置きかえる。
  *
@@ -60,18 +63,29 @@ const IMAGE_LINE = /^\s*!\[([^\]]*)\]\(\s*([^)\s]+)(?:\s+"[^"]*")?\s*\)\s*$/;
  * ネット上の画像（http/https）は預けようがないので、目印にしないでそのまま残す。
  * その場合の `marker` は null になる。
  *
+ * 文章の途中に混ざった画像も目印にできない。こちらは `inlineImages` に集めて返す。
+ *
  * @param {string} markdown - 本文（タイトルを取り除いたもの）
  * @param {string} baseDir - Markdownファイルが置いてあるフォルダ。相対パスの起点になる
- * @returns {{markdown: string, images: Array<{marker: string|null, alt: string, src: string, filePath: string|null}>}}
+ * @returns {{markdown: string,
+ *            images: Array<{marker: string|null, alt: string, src: string, filePath: string|null}>,
+ *            inlineImages: string[]}}
  */
 export function extractImages(markdown, baseDir) {
   const images = [];
+  const inlineImages = [];
 
   const replaced = markdown
     .split("\n")
     .map((line) => {
       const m = line.match(IMAGE_LINE);
-      if (!m) return line;
+      if (!m) {
+        // 文章の途中に書かれた画像は、目印にできない（行ごと置きかえられないため）。
+        // このあと <img> になるが、ローカルの画像はnoteに保存されず黙って消える。
+        // 直しようがないので、呼び出し側で知らせるために覚えておく。
+        inlineImages.push(...(line.match(INLINE_IMAGE) ?? []));
+        return line;
+      }
 
       const [, alt, src] = m;
 
@@ -96,7 +110,7 @@ export function extractImages(markdown, baseDir) {
     })
     .join("\n");
 
-  return { markdown: replaced, images };
+  return { markdown: replaced, images, inlineImages };
 }
 
 function resolveFrom(baseDir, src) {

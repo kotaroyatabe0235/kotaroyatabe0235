@@ -237,7 +237,16 @@ async function cmdDraft(args) {
 
   // 画像の行は先に抜き出して「目印」に置きかえる。
   // 本文を入れ終わったあとで、目印を1枚ずつ画像に入れ替える。
-  const { markdown: bodyWithMarkers, images } = extractImages(body, path.dirname(filePath));
+  const { markdown: bodyWithMarkers, images, inlineImages } = extractImages(
+    body,
+    path.dirname(filePath)
+  );
+
+  // 文章の途中に書かれた画像は入れられない。黙って消えると気づけないので知らせる。
+  for (const found of inlineImages) {
+    console.log(`⚠ 行の中の画像は入れられません（消えます）: ${found}`);
+    console.log("  画像だけの行に書き直すと入れられます。");
+  }
 
   // 使える画像（このパソコンにあって、実際に読めるもの）だけ残す
   const usable = [];
